@@ -10,4 +10,4 @@ In this method, we search for the similar sequences using BLASTn algorithm. More
 Deletions identified by structural variant predictors, at least include sample name, chromosome, positions of two break ends.
 
 ## Output:
-Deletions with similar sequences around the break ends meeting the criteria mentioned in Algorithm.
+Deletions with similar sequences around the break ends meeting the criteria mentioned in Algorithm. On the sample level, the proportion of deletions with homeology is calculated.
