@@ -180,59 +180,6 @@ summarize_candidates <- function(candidates, d.out, outDir) {
 }
 
 
-# get candidates in similarities x alignment length, and then summarize candidates by samples
-get_candidates <- function(full_deletions, blast_output_same_strand, outDir, combineOnly = FALSE, take_longest = TRUE, take_most_similar = FALSE) {
-    similarities <- c(0, 80, 90, 100)
-    alignment_lens <- c(1, 5, 10, 15, 20, 25, 30, 35, 40)
-
-    if (!combineOnly) {
-        for (min_similarity in similarities) {
-            cat("Similarity:", min_similarity, "\n")
-            for (alignment_length_cutoff in alignment_lens) {
-                cat("  Min alignment length:", alignment_length_cutoff, "\n")
-
-                outdir_candidates <- paste0(outDir, "/results_similarity_", min_similarity, "pct_", alignment_length_cutoff, "bp")
-                dir.create(outdir_candidates)
-
-                # for each event, get longest alignment with >=X% similarity
-                candidates <- identify_ssa_candidates(blast_output_same_strand, min_similarity = min_similarity, alignment_length_cutoff = alignment_length_cutoff, take_longest = take_longest, take_most_similar = take_most_similar)
-                # add deletion length
-                candidates <- candidates %>% left_join(full_deletions %>% dplyr::select(SAMPLE.TUMOR, CHROM, start_position, end_position, del_length), by = c("SAMPLE.TUMOR", "CHROM", "start_position", "end_position"))
-                # add tumor type and allelic status
-                candidates <- add_tumor_type_and_allelic_status(candidates)
-                candidates %>% fwrite(paste0(outdir_candidates, "/candidates.tsv"), sep = "\t")
-
-                if (nrow(candidates) > 0) {
-                    summarize_candidates(candidates = candidates, d.out = full_deletions, outDir = outdir_candidates)
-                }
-            }
-        }
-    }
-
-
-    # combine candidates.tsv files and compare BRCA1/BRCA2/control
-    candidates <- data.frame()
-    sample <- data.frame()
-    for (min_similarity in similarities) {
-        cat("Similarity:", min_similarity, "\n")
-        for (alignment_length_cutoff in alignment_lens) {
-            cat("  Min alignment length:", alignment_length_cutoff, "\n")
-
-            outdir_candidates <- paste0(outDir, "/results_similarity_", min_similarity, "pct_", alignment_length_cutoff, "bp")
-
-            min_similarity_tmp <- min_similarity
-            alignment_length_cutoff_tmp <- alignment_length_cutoff
-
-            if (file.exists(paste0(outdir_candidates, "/ssa_events_for_each_sample.tsv"))) {
-                candidates <- rbind(candidates, fread(paste0(outdir_candidates, "/candidates.tsv")) %>% dplyr::mutate(min_similarity = min_similarity_tmp, alignment_length_cutoff = alignment_length_cutoff_tmp))
-                sample <- rbind(sample, fread(paste0(outdir_candidates, "/ssa_events_for_each_sample.tsv")) %>% dplyr::mutate(min_similarity = min_similarity_tmp, alignment_length_cutoff = alignment_length_cutoff_tmp))
-            }
-        }
-    }
-    list(candidates, sample)
-}
-
-
 count_number_of_dels_homeology <- function(outDir) {
     blast_summary <- fread(paste0(outDir, "/ssa_events_in_bialliec_brca1_brca2_tumors.summary.tsv")) %>%
         dplyr::filter(allelic_status_brca1_brca2 != "other")
@@ -245,53 +192,4 @@ count_number_of_dels_homeology <- function(outDir) {
         dplyr::rename(minimal_homeology_length = alignment_length_cutoff)
 
     summary %>% fwrite(paste0(outDir, "/count_number_of_dels_homeology.tsv"), sep = "\t")
-}
-
-# get candidates for short deleitons in similarities x alignment length, and then summarize candidates by samples
-get_candidates_for_short_deletions <- function(full_deletions, blast_output_same_strand, similarities = c(0, 80, 90, 100), alignment_lens = 4:9, outDir, combineOnly = FALSE) {
-    if (!combineOnly) {
-        for (min_similarity in similarities) {
-            cat("Similarity:", min_similarity, "\n")
-            for (alignment_length_cutoff in alignment_lens) {
-                cat("  Min alignment length:", alignment_length_cutoff, "\n")
-
-                outdir_candidates <- paste0(outDir, "/results_similarity_", min_similarity, "pct_", alignment_length_cutoff, "bp")
-                dir.create(outdir_candidates)
-
-                # for each event, get longest alignment with >=X% similarity
-                candidates <- identify_ssa_candidates(blast_output_same_strand, min_similarity = min_similarity, alignment_length_cutoff = alignment_length_cutoff)
-                # add deletion length
-                candidates <- candidates %>% left_join(full_deletions %>% dplyr::select(SAMPLE.TUMOR, CHROM, start_position, end_position, del_length), by = c("SAMPLE.TUMOR", "CHROM", "start_position", "end_position"))
-                # add tumor type and allelic status
-                candidates <- add_tumor_type_and_allelic_status(candidates)
-                candidates %>% fwrite(paste0(outdir_candidates, "/candidates.tsv"), sep = "\t")
-
-                if (nrow(candidates) > 0) {
-                    summarize_candidates(candidates = candidates, d.out = full_deletions, outDir = outdir_candidates)
-                }
-            }
-        }
-    }
-
-
-    # combine candidates.tsv files and compare BRCA1/BRCA2/control
-    candidates <- data.frame()
-    sample <- data.frame()
-    for (min_similarity in similarities) {
-        cat("Similarity:", min_similarity, "\n")
-        for (alignment_length_cutoff in alignment_lens) {
-            cat("  Min alignment length:", alignment_length_cutoff, "\n")
-
-            outdir_candidates <- paste0(outDir, "/results_similarity_", min_similarity, "pct_", alignment_length_cutoff, "bp")
-
-            min_similarity_tmp <- min_similarity
-            alignment_length_cutoff_tmp <- alignment_length_cutoff
-
-            if (file.exists(paste0(outdir_candidates, "/ssa_events_for_each_sample.tsv"))) {
-                candidates <- rbind(candidates, fread(paste0(outdir_candidates, "/candidates.tsv")) %>% dplyr::mutate(min_similarity = min_similarity_tmp, alignment_length_cutoff = alignment_length_cutoff_tmp))
-                sample <- rbind(sample, fread(paste0(outdir_candidates, "/ssa_events_for_each_sample.tsv")) %>% dplyr::mutate(min_similarity = min_similarity_tmp, alignment_length_cutoff = alignment_length_cutoff_tmp))
-            }
-        }
-    }
-    list(candidates, sample)
 }
