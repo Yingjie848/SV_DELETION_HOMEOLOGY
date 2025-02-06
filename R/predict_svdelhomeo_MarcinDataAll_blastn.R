@@ -157,6 +157,44 @@ process_blast_output_marcin_data(blast_dir)
 #   by taking most similar and longest alignment, where the alignments should have >=80% similarity, 
 #   and >=30bp alignment length
 
+make_ssa_candidate_table <- function(deletions, outDir, similarities = c(80), alignment_lens = c(30)){
+
+    # examine deletion length for BRCA1/2/control tumors
+    examine_deletion_length(
+        deletions,
+        outDir = paste0(outDir,"/deletion_length"),
+        group="allelic_status_brca1_brca2",
+        comparisons=list(c('BRCA1','BRCA2'),c('BRCA1','control'),c('BRCA2','control')))
+
+    # examine deletion length for BRCA2/control tumors
+    examine_deletion_length(
+        deletions,
+        outDir = paste0(outDir,"/deletion_length_BRCA2_control"),
+        group="allelic_status_brca1_brca2",
+        comparisons=list(c('BRCA2','control')))
+
+    # load blast output data with the same direction, add deletion length, and filter out deletions without deletion length
+    blast_output_same_strand <- fread(paste0(blast_dir,"/blast_output.filtered_same_direction.tsv")) %>%
+                                dplyr::left_join(deletions %>% dplyr::select(SAMPLE.TUMOR,CHROM,start_position,end_position,del_length), 
+                                                by=c('SAMPLE.TUMOR','CHROM','start_position','end_position')) %>%
+                                dplyr::filter(!is.na(del_length)) %>%
+                                dplyr::select(-del_length)
+        
+    # get SSA homeology candidates by similarity + homeology length
+    # For the final analysis, we only use 80% similarity and 30bp alignment length
+    out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = similarities, alignment_lens = alignment_lens)
+
+    candidates <- out[[1]] # deletions with homeology candidates
+    sample     <- out[[2]] # sample level results, including homeology rate (proportion of deletions with homeology)
+
+    candidates %>% fwrite(paste0(outDir,"/ssa_events_candidates.tsv"),sep="\t")
+    sample     %>% fwrite(paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
+
+    out
+
+}
+
+
 ##
 ## for deletions >=1kb
 ##
@@ -172,45 +210,17 @@ nrow(deletions) # 47336
 dels <- deletions %>% dplyr::filter(allelic_status_brca1_brca2 %in% c('BRCA2','control'))
 nrow(dels) # 45319
 
-# 1-10kb, 10-100kb, 100kb-1Mb, 1Mb-10Mb, >10Mb
+# check number of deletions in a range of sizes: 1-10kb, 10-100kb, 100kb-1Mb, 1Mb-10Mb, >10Mb
 dels %>% filter(del_length>1e3,del_length<=1e4) %>% nrow # 11248
 dels %>% filter(del_length>1e4,del_length<=1e5) %>% nrow # 15356
 dels %>% filter(del_length>1e5,del_length<=1e6) %>% nrow # 13195
 dels %>% filter(del_length>1e6,del_length<=1e7) %>% nrow # 3397
 dels %>% filter(del_length>1e7) %>% nrow # 2123
 
-## --- examine deletion length for BRCA1/2/control tumors
-examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA1','BRCA2'),c('BRCA1','control'),c('BRCA2','control')))
-
-## --- examine deletion length for BRCA2/control tumors
-examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length_BRCA2_control"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA2','control')))
-
-## --- load blast output data with the same direction, add deletion length, and filter out deletions without deletion length
-blast_output_same_strand <- fread(paste0(blast_dir,"/blast_output.filtered_same_direction.tsv")) %>%
-                            dplyr::left_join(deletions %>% dplyr::select(SAMPLE.TUMOR,CHROM,start_position,end_position,del_length), 
-                                             by=c('SAMPLE.TUMOR','CHROM','start_position','end_position')) %>%
-                            dplyr::filter(!is.na(del_length)) %>%
-                            dplyr::select(-del_length)
-
-## --- get deletions with homeology candidates by similarity + homeology length
-#out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = c(0,80,100), alignment_lens = c(10,20,25,30,40))
-
-# For the final analysis, we only use 80% similarity and 30bp alignment length
-out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = c(80), alignment_lens = c(30))
-
-candidates <- out[[1]] # deletions with homeology candidates
-sample     <- out[[2]] # sample level results, including homeology rate (proportion of deletions with homeology)
-
-candidates %>% fwrite(paste0(outDir,"/ssa_events_candidates.tsv"),sep="\t")
-sample     %>% fwrite(paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
+## --- make SSA candidate table
+out <- make_ssa_candidate_table(deletions,outDir)
+candidates <- out[[1]]
+sample     <- out[[2]]
 
 
 ## --- further analysis
@@ -283,37 +293,10 @@ nrow(deletions) # 27946
 dels <- deletions %>% dplyr::filter(allelic_status_brca1_brca2 %in% c('BRCA2','control'))
 nrow(dels) # 26604
 
-## --- examine deletion length for BRCA1/2/control tumors
-examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA1','BRCA2'),c('BRCA1','control'),c('BRCA2','control')))
-
-## --- examine deletion length for BRCA2/control tumors
-examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length_BRCA2_control"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA2','control')))
-
-## --- load blast output data with the same direction, add deletion length, and filter out deletions without length
-blast_output_same_strand <- fread(paste0(blast_dir,"/blast_output.filtered_same_direction.tsv")) %>%
-                            dplyr::left_join(deletions %>% dplyr::select(SAMPLE.TUMOR,CHROM,start_position,end_position,del_length), 
-                                             by=c('SAMPLE.TUMOR','CHROM','start_position','end_position')) %>%
-                            dplyr::filter(!is.na(del_length)) %>%
-                            dplyr::select(-del_length)
-
-## --- get deletions with homeology candidates by similarity + homeology length
-#out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = c(0,80,100), alignment_lens = c(10,20,25,30,40))
-## for now, we only use 80% similarity and 30bp alignment length
-out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = c(80), alignment_lens = c(30))
-
+## --- make SSA candidate table
+out <- make_ssa_candidate_table(deletions,outDir)
 candidates <- out[[1]]
 sample     <- out[[2]]
-
-candidates %>% fwrite(paste0(outDir,"/ssa_events_candidates.tsv"),sep="\t")
-sample     %>% fwrite(paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
 
 
 ## --- further analysis
@@ -370,39 +353,10 @@ make_plots_for_tumor_types_allTumors(sample,hrd_tbl,outDir=paste0(outDir,"/plots
 make_plots_for_tumor_types_allBOPP(sample,hrd_tbl,outDir=paste0(outDir,"/plots_tumor_type_homeology_rate_allBOPP"))
 
 
+
 ##
 ## run for different deletion length
 ## 
-make_plots <- function(deletions, outDir, similarities = c(80), alignment_lens = c(30)){
-
-    examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA1','BRCA2'),c('BRCA1','control'),c('BRCA2','control')))
-
-    examine_deletion_length(
-        deletions,
-        outDir = paste0(outDir,"/deletion_length_BRCA2_control"),
-        group="allelic_status_brca1_brca2",
-        comparisons=list(c('BRCA2','control')))
-
-    blast_output_same_strand <- fread(paste0(blast_dir,"/blast_output.filtered_same_direction.tsv")) %>%
-                                dplyr::left_join(deletions %>% dplyr::select(SAMPLE.TUMOR,CHROM,start_position,end_position,del_length), 
-                                                by=c('SAMPLE.TUMOR','CHROM','start_position','end_position')) %>%
-                                dplyr::filter(!is.na(del_length)) %>%
-                                dplyr::select(-del_length)
-        
-    # get SSA homeology candidates by similarity + homeology length
-    out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = similarities, alignment_lens = alignment_lens)
-
-    candidates <- out[[1]]
-    sample     <- out[[2]]
-
-    candidates %>% fwrite(paste0(outDir,"/ssa_events_candidates.tsv"),sep="\t")
-    sample     %>% fwrite(paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
-
-}
 
 
 ##
@@ -414,7 +368,7 @@ outDir=paste0(outdir,"/output_deletions_1KBto10KB"); dir.create(outDir)
 deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
      dplyr::filter(del_length>=1e3, del_length<=1e4)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 ##
@@ -426,7 +380,7 @@ outDir=paste0(outdir,"/output_deletions_above_10KB"); dir.create(outDir)
 deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
                 dplyr::filter(del_length>10000)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 ##
@@ -439,7 +393,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
                 dplyr::filter(del_length>1e4, del_length<=1e5)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 ##
@@ -452,7 +406,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
                 dplyr::filter(del_length>1e5)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 ##
@@ -465,7 +419,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
                 dplyr::filter(del_length>1e5, del_length<=1e6)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 ##
@@ -478,7 +432,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
                 dplyr::filter(del_length>1e6, del_length<=1e7)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 ##
 ## for deletions >10Mb
@@ -490,7 +444,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
                 dplyr::filter(del_length>1e7)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 
@@ -498,43 +452,47 @@ make_plots(deletions,outDir)
 ## make homeology rate plot for deletion length 1-10kb, 10-100kb, 100kb-1Mb, 1Mb-10Mb, >10Mb, keep y-axis in the same scale
 ##
 
-outDir=paste0(outdir,"/output_deletions_above_1KB/homeology_rate_in_different_deletion_size"); dir.create(outDir)
+make_homeology_rate_plot_for_different_deletion_sizes <- function(){
 
-dat1 <- fread(paste0(outdir,"/output_deletions_1KBto10KB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='1-10kb')
-dat2 <- fread(paste0(outdir,"/output_deletions_10KBto100KB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='10-100kb')
-dat3 <- fread(paste0(outdir,"/output_deletions_100KBto1MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='100kb-1Mb')
-dat4 <- fread(paste0(outdir,"/output_deletions_1MBto10MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='1Mb-10Mb')
-dat5 <- fread(paste0(outdir,"/output_deletions_above_10MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='>10Mb')
+    outDir=paste0(outdir,"/output_deletions_above_1KB/homeology_rate_in_different_deletion_size"); dir.create(outDir)
 
-dat <- rbind(dat1,dat2,dat3,dat4,dat5) %>% dplyr::mutate(deletion_size=factor(deletion_size,levels=c('1-10kb','10-100kb','100kb-1Mb','1Mb-10Mb','>10Mb')))
-fwrite(dat,paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
+    dat1 <- fread(paste0(outdir,"/output_deletions_1KBto10KB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='1-10kb')
+    dat2 <- fread(paste0(outdir,"/output_deletions_10KBto100KB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='10-100kb')
+    dat3 <- fread(paste0(outdir,"/output_deletions_100KBto1MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='100kb-1Mb')
+    dat4 <- fread(paste0(outdir,"/output_deletions_1MBto10MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='1Mb-10Mb')
+    dat5 <- fread(paste0(outdir,"/output_deletions_above_10MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='>10Mb')
 
-# group by deletion size and genotype
-make_homeology_rate_plot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
-    comparisons = list(c('BRCA2','control'),c('BRCA2','BRCA1'),c('BRCA1','control')),
-    outfile="homeology_rate_plot_in_deletion_sizes_in_brca1_brca2_tumors.pdf",
-    label.y=c(0.22,0.25,0.28), ylim=c(0,0.35))
+    dat <- rbind(dat1,dat2,dat3,dat4,dat5) %>% dplyr::mutate(deletion_size=factor(deletion_size,levels=c('1-10kb','10-100kb','100kb-1Mb','1Mb-10Mb','>10Mb')))
+    fwrite(dat,paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
 
-
-make_homeology_rate_plot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
-    comparisons = list(c('BRCA2','control')),
-    outfile="homeology_rate_plot_in_deletion_sizes_in_brca2_tumors.pdf",
-    label.y=c(0.22,0.25), ylim=c(0,0.3))
-
-# group by deletion size
-make_homeology_rate_plot_in_deletion_sizes_on_x_axis(dat,outDir,group="allelic_status_brca1_brca2",
-    comparisons = list(c('BRCA2','control'),c('BRCA2','BRCA1'),c('BRCA1','control')),
-    outfile="homeology_rate_plot_in_deletion_sizes_on_x_axis_in_brca1_brca2_tumors.pdf", ylim=c(0,0.3))
-
-make_homeology_rate_plot_in_deletion_sizes_on_x_axis(dat,outDir,group="allelic_status_brca1_brca2",
-    comparisons = list(c('BRCA2','control')),
-    outfile="homeology_rate_plot_in_deletion_sizes_on_x_axis_in_brca2_tumors.pdf", ylim=c(0,0.3))
-
-make_homeology_rate_plot_in_deletion_sizes_on_x_axis(dat,outDir,group="allelic_status_brca1_brca2",
-    comparisons = list(c('BRCA2')),
-    outfile="homeology_rate_plot_in_deletion_sizes_on_x_axis_in_brca2-only_tumors.pdf", ylim=c(0,0.3))
+    # group by deletion size and genotype
+    make_homeology_rate_plot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
+        comparisons = list(c('BRCA2','control'),c('BRCA2','BRCA1'),c('BRCA1','control')),
+        outfile="homeology_rate_plot_in_deletion_sizes_in_brca1_brca2_tumors.pdf",
+        label.y=c(0.22,0.25,0.28), ylim=c(0,0.35))
 
 
+    make_homeology_rate_plot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
+        comparisons = list(c('BRCA2','control')),
+        outfile="homeology_rate_plot_in_deletion_sizes_in_brca2_tumors.pdf",
+        label.y=c(0.22,0.25), ylim=c(0,0.3))
+
+    # group by deletion size
+    make_homeology_rate_plot_in_deletion_sizes_on_x_axis(dat,outDir,group="allelic_status_brca1_brca2",
+        comparisons = list(c('BRCA2','control'),c('BRCA2','BRCA1'),c('BRCA1','control')),
+        outfile="homeology_rate_plot_in_deletion_sizes_on_x_axis_in_brca1_brca2_tumors.pdf", ylim=c(0,0.3))
+
+    make_homeology_rate_plot_in_deletion_sizes_on_x_axis(dat,outDir,group="allelic_status_brca1_brca2",
+        comparisons = list(c('BRCA2','control')),
+        outfile="homeology_rate_plot_in_deletion_sizes_on_x_axis_in_brca2_tumors.pdf", ylim=c(0,0.3))
+
+    make_homeology_rate_plot_in_deletion_sizes_on_x_axis(dat,outDir,group="allelic_status_brca1_brca2",
+        comparisons = list(c('BRCA2')),
+        outfile="homeology_rate_plot_in_deletion_sizes_on_x_axis_in_brca2-only_tumors.pdf", ylim=c(0,0.3))
+
+}
+
+make_homeology_rate_plot_for_different_deletion_sizes()
 
 
 ######################################################################################################
@@ -570,36 +528,12 @@ dels %>% filter(del_length>1e7) %>% nrow # 888
 # group3
 dels %>% filter(del_length>1e5) %>% nrow # 5111
 
-examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA1','BRCA2'),c('BRCA1','control'),c('BRCA2','control')))
-
-examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length_BRCA2_control"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA2','control')))
-
-blast_output_same_strand <- fread(paste0(blast_dir,"/blast_output.filtered_same_direction.tsv")) %>%
-                            dplyr::left_join(deletions %>% dplyr::select(SAMPLE.TUMOR,CHROM,start_position,end_position,del_length), 
-                                             by=c('SAMPLE.TUMOR','CHROM','start_position','end_position')) %>%
-                            dplyr::filter(!is.na(del_length)) %>%
-                            dplyr::select(-del_length)
-
-# get SSA homeology candidates by similarity + homeology length
-#out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = c(0,80,100), alignment_lens = c(10,20,25,30,40))
-# for similarity 80%, and homeology length 30bp
-out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = c(80), alignment_lens = c(30))
-
+## --- make SSA candidate table
+out <- make_ssa_candidate_table(deletions,outDir)
 candidates <- out[[1]]
 sample     <- out[[2]]
 
-candidates %>% fwrite(paste0(outDir,"/ssa_events_candidates.tsv"),sep="\t")
-sample     %>% fwrite(paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
-
-# for similarity x homeology seqeunce length
+## --- for similarity x homeology seqeunce length
 make_sample_plots_similarity_vs_alignment_length(sample=sample,outDir=outDir)
 
 # for 80% similarity
@@ -616,7 +550,7 @@ make_sample_plots_alignment_length(
     comparisons=list(c('BRCA2','control')))
 
 
-# check controls with long tails, it could be caused by low number of deletions
+## --- check controls with long tails, it could be caused by low number of deletions
 p <- sample %>% dplyr::filter(min_similarity==80,alignment_length_cutoff==30,allelic_status_brca1_brca2 %in% c('BRCA1','BRCA2','control')) %>%
     ggplot(aes(x=deletions,y=homeology_rate)) + geom_point() + scale_x_log10() + facet_wrap(~allelic_status_brca1_brca2,nrow=1)
 dir.create(paste0(outDir,"/plots_homeology_rate_vs_deletions"))
@@ -662,36 +596,12 @@ nrow(deletions) # 8147
 dels <- deletions %>% dplyr::filter(allelic_status_brca1_brca2 %in% c('BRCA2','control'))
 nrow(dels) # 7067
 
-examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA1','BRCA2'),c('BRCA1','control'),c('BRCA2','control')))
-
-examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length_BRCA2_control"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA2','control')))
-
-blast_output_same_strand <- fread(paste0(blast_dir,"/blast_output.filtered_same_direction.tsv")) %>%
-                            dplyr::left_join(deletions %>% dplyr::select(SAMPLE.TUMOR,CHROM,start_position,end_position,del_length), 
-                                             by=c('SAMPLE.TUMOR','CHROM','start_position','end_position')) %>%
-                            dplyr::filter(!is.na(del_length)) %>%
-                            dplyr::select(-del_length)
-
-# get SSA homeology candidates by similarity + homeology length
-#out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = c(0,80,100), alignment_lens = c(10,20,25,30,40))
-# for similarity 80%, and homeology length 30bp
-out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = c(80), alignment_lens = c(30))
-
+## --- make SSA candidate table
+out <- make_ssa_candidate_table(deletions,outDir)
 candidates <- out[[1]]
 sample     <- out[[2]]
 
-candidates %>% fwrite(paste0(outDir,"/ssa_events_candidates.tsv"),sep="\t")
-sample     %>% fwrite(paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
-
-# for similarity x homeology seqeunce length
+## --- for similarity x homeology seqeunce length
 make_sample_plots_similarity_vs_alignment_length(sample=sample,outDir=outDir)
 
 # for 80% similarity
@@ -708,7 +618,7 @@ make_sample_plots_alignment_length(
     comparisons=list(c('BRCA2','control')))
 
 
-# check controls with long tails, it could be caused by low number of deletions
+## --- check controls with long tails, it could be caused by low number of deletions
 p <- sample %>% dplyr::filter(min_similarity==80,alignment_length_cutoff==30,allelic_status_brca1_brca2 %in% c('BRCA1','BRCA2','control')) %>%
     ggplot(aes(x=deletions,y=homeology_rate)) + geom_point() + scale_x_log10() + facet_wrap(~allelic_status_brca1_brca2,nrow=1)
 dir.create(paste0(outDir,"/plots_homeology_rate_vs_deletions"))
@@ -744,38 +654,6 @@ make_plots_for_tumor_types_allBOPP(sample,hrd_tbl,outDir=paste0(outDir,"/plots_t
 
 ## --- run for different deletion length
 
-make_plots <- function(deletions, outDir, similarities = c(80), alignment_lens = c(30)){
-
-    examine_deletion_length(
-    deletions,
-    outDir = paste0(outDir,"/deletion_length"),
-    group="allelic_status_brca1_brca2",
-    comparisons=list(c('BRCA1','BRCA2'),c('BRCA1','control'),c('BRCA2','control')))
-
-    examine_deletion_length(
-        deletions,
-        outDir = paste0(outDir,"/deletion_length_BRCA2_control"),
-        group="allelic_status_brca1_brca2",
-        comparisons=list(c('BRCA2','control')))
-
-    blast_output_same_strand <- fread(paste0(blast_dir,"/blast_output.filtered_same_direction.tsv")) %>%
-                                dplyr::left_join(deletions %>% dplyr::select(SAMPLE.TUMOR,CHROM,start_position,end_position,del_length), 
-                                                by=c('SAMPLE.TUMOR','CHROM','start_position','end_position')) %>%
-                                dplyr::filter(!is.na(del_length)) %>%
-                                dplyr::select(-del_length)
-        
-    # get SSA homeology candidates by similarity + homeology length
-    out <- get_candidates(deletions,blast_output_same_strand,outDir,take_longest = FALSE, take_most_similar = TRUE, similarities = similarities, alignment_lens = alignment_lens)
-
-    candidates <- out[[1]]
-    sample     <- out[[2]]
-
-    candidates %>% fwrite(paste0(outDir,"/ssa_events_candidates.tsv"),sep="\t")
-    sample     %>% fwrite(paste0(outDir,"/ssa_events_samples.tsv"),sep="\t")
-
-}
-
-
 ##
 ## for deletions 1-10kb
 ##
@@ -787,7 +665,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
     dplyr::filter(tumor_type_final %in% c('BRCA','OV','PACA','PRAD'), del_length>1e3, del_length<1e4)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 ##
@@ -801,7 +679,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
     dplyr::filter(tumor_type_final %in% c('BRCA','OV','PACA','PRAD'), del_length>=1e4, del_length<1e5)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 ##
@@ -815,7 +693,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
     dplyr::filter(tumor_type_final %in% c('BRCA','OV','PACA','PRAD'), del_length>=1e5, del_length<1e6)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 ##
@@ -829,7 +707,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
     dplyr::filter(tumor_type_final %in% c('BRCA','OV','PACA','PRAD'), del_length>=1e6, del_length<1e7)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 ##
 ## for deletions >10Mb
@@ -842,7 +720,7 @@ deletions <- fread(paste0(outdir,"/dels.tsv")) %>%
     dplyr::filter(tumor_type_final %in% c('BRCA','OV','PACA','PRAD'), del_length>=1e7)
 nrow(deletions)
 
-make_plots(deletions,outDir)
+make_ssa_candidate_table(deletions,outDir)
 
 
 
@@ -850,31 +728,37 @@ make_plots(deletions,outDir)
 ## make homeology rate plot for deletion length 1-10kb, 10-100kb, 100kb-1Mb, 1Mb-10Mb, >10Mb, keep y-axis in the same scale
 ##
 
-outDir=paste0(outdir,"/BOPP_deletions_above_1KB/homeology_rate_in_different_deletion_size"); dir.create(outDir, recursive = TRUE)
+make_homeology_rate_plot_for_different_deletion_sizes <- function(){
 
-dat1 <- fread(paste0(outdir,"/BOPP_deletions_1KBto10KB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='1-10kb')
-dat2 <- fread(paste0(outdir,"/BOPP_deletions_10KBto100KB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='10-100kb')
-dat3 <- fread(paste0(outdir,"/BOPP_deletions_100KBto1MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='100kb-1Mb')
-dat4 <- fread(paste0(outdir,"/BOPP_deletions_1MBto10MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='1Mb-10Mb')
-dat5 <- fread(paste0(outdir,"/BOPP_deletions_above_10MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='>10Mb')
+    outDir=paste0(outdir,"/BOPP_deletions_above_1KB/homeology_rate_in_different_deletion_size"); dir.create(outDir, recursive = TRUE)
 
-dat <- rbind(dat1,dat2,dat3,dat4,dat5) %>% dplyr::mutate(deletion_size=factor(deletion_size,levels=c('1-10kb','10-100kb','100kb-1Mb','1Mb-10Mb','>10Mb')))
-fwrite(dat,paste0(outDir,"/sample_homeology_rate.tsv"),sep="\t")
+    dat1 <- fread(paste0(outdir,"/BOPP_deletions_1KBto10KB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='1-10kb')
+    dat2 <- fread(paste0(outdir,"/BOPP_deletions_10KBto100KB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='10-100kb')
+    dat3 <- fread(paste0(outdir,"/BOPP_deletions_100KBto1MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='100kb-1Mb')
+    dat4 <- fread(paste0(outdir,"/BOPP_deletions_1MBto10MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='1Mb-10Mb')
+    dat5 <- fread(paste0(outdir,"/BOPP_deletions_above_10MB/ssa_events_samples.tsv")) %>% dplyr::mutate(deletion_size='>10Mb')
 
-# group by deletion size and genotype
-make_homeology_rate_plot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
-    comparisons = list(c('BRCA2','control'),c('BRCA2','BRCA1'),c('BRCA1','control')),
-    outfile="homeology_rate_plot_in_deletion_sizes_in_brca1_brca2_tumors.pdf",
-    label.y=c(0.22,0.25,0.28), ylim=c(0,0.35))
+    dat <- rbind(dat1,dat2,dat3,dat4,dat5) %>% dplyr::mutate(deletion_size=factor(deletion_size,levels=c('1-10kb','10-100kb','100kb-1Mb','1Mb-10Mb','>10Mb')))
+    fwrite(dat,paste0(outDir,"/sample_homeology_rate.tsv"),sep="\t")
 
-
-make_homeology_rate_plot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
-    comparisons = list(c('BRCA2','control')),
-    outfile="homeology_rate_plot_in_deletion_sizes_in_brca2_tumors.pdf",
-    label.y=c(0.22,0.25), ylim=c(0,0.3))
+    # group by deletion size and genotype
+    make_homeology_rate_plot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
+        comparisons = list(c('BRCA2','control'),c('BRCA2','BRCA1'),c('BRCA1','control')),
+        outfile="homeology_rate_plot_in_deletion_sizes_in_brca1_brca2_tumors.pdf",
+        label.y=c(0.22,0.25,0.28), ylim=c(0,0.35))
 
 
-make_homeology_rate_violinplot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
-    comparisons = list(c('BRCA2','control')),
-    outfile="homeology_rate_violinplot_in_deletion_sizes_in_brca2_tumors.pdf",
-    label.y=c(0.22,0.25), ylim=c(0,0.3))
+    make_homeology_rate_plot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
+        comparisons = list(c('BRCA2','control')),
+        outfile="homeology_rate_plot_in_deletion_sizes_in_brca2_tumors.pdf",
+        label.y=c(0.22,0.25), ylim=c(0,0.3))
+
+
+    make_homeology_rate_violinplot_in_deletion_sizes(dat,outDir,group="allelic_status_brca1_brca2",
+        comparisons = list(c('BRCA2','control')),
+        outfile="homeology_rate_violinplot_in_deletion_sizes_in_brca2_tumors.pdf",
+        label.y=c(0.22,0.25), ylim=c(0,0.3))
+
+}
+
+make_homeology_rate_plot_for_different_deletion_sizes()
