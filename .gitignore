@@ -1,6 +1,9 @@
 output/
+output
 input/
+input
 data/
+data
 workflow/
 analysis/
 test/
