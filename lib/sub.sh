@@ -1,4 +1,6 @@
 #!/usr/bin/bash
+# Description: submit job to LSF cluster
+# Author: Yingjie Zhu
 
 # monitor progress by examing file generated or not
 function monitor_progress {
