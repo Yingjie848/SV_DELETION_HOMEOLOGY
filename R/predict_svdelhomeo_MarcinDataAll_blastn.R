@@ -1,3 +1,4 @@
+# Predict structrual variants (SV) with homeology in multiple datasets (including TCGA, PCAWG, HMF, etc.) retrieved from Setton et al. 2023 paper (Marcin's data)
 rm(list = ls())
 library(data.table)
 library(magrittr)
@@ -12,15 +13,17 @@ source("lib/lib_identify_homeology.R")
 source("lib/lib_repeats.R")
 source("lib/lib_marcin_data.R")
 
-
+# set output directory
 outdir="output/marcin_allTumor_lr100_blast/"; dir.create(outdir)
 
+# set blast directory
 blast_dir=paste0(outdir,"/blast_output"); dir.create(blast_dir)
+
+# HRDetect results have been included in the hrd-supp-table_ZC.rds file
 
 
 ## -----------------------------------------------------------------------------------------------
-# prepare deletions from Marcin's data
-
+# prepare deletions from Setton et al. 2023 data (or Marcin's data)
 prepare_data <- function(){
 
     # Read junctions and hrd table data
@@ -53,6 +56,7 @@ prepare_data <- function(){
     dels.dt[, start_position := start.1]
     dels.dt[, end_position   := start.2]
     dels.dt[, del_length     := span]
+
     # add BRCA1/BRCA2/WT mutations
     dels.dt[, genotype := hrd_tbl[sample, fmut_bi]]
     dels.dt <- dels.dt %>% left_join(hrd_tbl %>% dplyr::mutate(sample=pair) %>% 
@@ -68,7 +72,8 @@ prepare_data <- function(){
     table(dels.dt$allelic_status_brca1_brca2)
 
 
-    # get deletions with homeology by samples predicted by Marcin's group, code copied from https://github.com/mskilab/setton_hadi_choo_2023/blob/main/notebooks/figures.ipynb
+    # get deletions with homeology by samples predicted by Marcin's group, code were copied from 
+    # https://github.com/mskilab/setton_hadi_choo_2023/blob/main/notebooks/figures.ipynb
     plot_frac <- function(hlen_cutoff=30){
             hdels.dt = dels.dt[, .(ndels = .SD[, .N], nhdels = .SD[ hlen > hlen_cutoff, .N]), keyby = sample]
             hdels.dt[, genotype := hrd_tbl[sample, fmut_bi]]
@@ -137,8 +142,8 @@ d.out <- prepare_data()
 
 
 ## -----------------------------------------------------------------------------------------------
-# Run blastn, aligning 100bp leftside and 100bp rightside of the first breakpoint to  
-#   100bp leftside and 100bp rightside of the second breakpoint
+# Run blastn, aligning the flanking 200bp of the first breakpoint to 
+# the flanking 200bp rightside of the second breakpoint
 
 # run pairwise blast for two sequences of each deletion
 # if everything runs well, delete tmp_dir afterwards, which contains intermediate blast output files
@@ -153,8 +158,8 @@ process_blast_output_marcin_data(blast_dir)
 
 
 ## -----------------------------------------------------------------------------------------------
-# To this step, we have made the alignment, next we identify deletions with homeology candidates 
-#   by taking most similar and longest alignment, where the alignments should have >=80% similarity, 
+# Until this step, we have got the alignments, next we will identify deletions with homeology candidates 
+#   by taking most similar and longest alignment, where the alignment should have >=80% similarity, 
 #   and >=30bp alignment length
 
 make_ssa_candidate_table <- function(deletions, outDir, similarities = c(80), alignment_lens = c(30)){

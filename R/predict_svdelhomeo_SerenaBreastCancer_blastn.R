@@ -1,3 +1,4 @@
+# Predict structrual variants (SV) with homeology in Serena's 560 breast cancer
 rm(list = ls())
 library(data.table)
 library(magrittr)
@@ -7,8 +8,6 @@ library(ggforce)
 library(ggpubr)
 library(tidyr)
 
-setwd("/home/zhuy1/my_projects_nrlab/Manisha_SSA/ssa_homeology_20231119")
-
 source("lib/lib_load_serena_clinical_sig_data.R")
 source("lib/lib_blast.R")
 source("lib/lib_identify_homeology.R")
@@ -16,10 +15,13 @@ source("lib/lib_plots.R")
 source("lib/lib_repeats.R")
 source("lib/lib_serena_breast_data.R")
 
-
+# set output directory
 outdir="output/serena_SV_deletions_ssa_blast_lr100bp"; dir.create(outdir)
+
+# set blast directory
 blast_dir=paste0(outdir,"/blast_output"); dir.create(blast_dir)
 
+# load HRDetect data
 hrdetect <- fread("input/Davies_HRDetect_2017/David_2017_HRDetect_score.csv")
 
 
@@ -34,33 +36,6 @@ prepare_data <- function(){
 
     # Filter for deletions
     d <- d[variant_type == "deletion"]
-
-    ## Snapshot of the deletion data
-    # Classes ‘data.table’ and 'data.frame':  17564 obs. of  47 variables:
-    #  $ icgc_donor_id                   : chr  "DO218489" "DO218489" "DO218489" "DO218489" ...
-    #  $ project_code                    : chr  "BRCA-EU" "BRCA-EU" "BRCA-EU" "BRCA-EU" ...
-    #  $ icgc_specimen_id                : chr  "SP117710" "SP117710" "SP117710" "SP117710" ...
-    #  $ icgc_sample_id                  : chr  "SA543682" "SA543682" "SA543682" "SA543682" ...
-    #  $ submitted_sample_id             : chr  "PD8623a" "PD8623a" "PD8623a" "PD8623a" ...
-    #  $ submitted_matched_sample_id     : chr  "PD8623b" "PD8623b" "PD8623b" "PD8623b" ...
-    #  $ variant_type                    : chr  "deletion" "deletion" "deletion" "deletion" ...
-    #  $ sv_id                           : chr  "CGP_basis_stsm_7558" "CGP_basis_stsm_7545" "CGP_basis_stsm_7541" "CGP_basis_stsm_7551" ...
-    #  $ placement                       : int  1 1 1 1 1 1 1 1 1 1 ...
-    #  $ annotation                      : chr  "Chr.11  133629242(46)--AGAA--133643401(05)  Chr.11  (score 97)" "Chr.3  13256939][13260353  Chr.3  (score 98)" "Chr.1  75144883(89)--TTCTGC--104591725(31)  Chr.1  (score 97)" "Chr.5  135585320(21)--A--135866679(80)  Chr.5  (score 100)" ...
-    #  $ interpreted_annotation          : logi  NA NA NA NA NA NA ...
-    #  $ chr_from                        : chr  "11" "3" "1" "5" ...
-    #  $ chr_from_bkpt                   : int  133629244 13256939 75144886 135585320 11983732 12457507 3309561 76658015 55568194 108189931 ...
-    #  $ chr_from_strand                 : int  1 1 1 1 1 1 1 1 1 1 ...
-    #  $ chr_from_range                  : int  4 0 6 1 1 0 2 1 1 2 ...
-    #  $ chr_from_flanking_seq           : logi  NA NA NA NA NA NA ...
-    #  $ chr_to                          : chr  "11" "3" "1" "5" ...
-    #  $ chr_to_bkpt                     : int  133643403 13260353 104591728 135866679 29549859 12459976 3415867 76664753 56161643 109861688 ...
-    #  $ chr_to_strand                   : int  1 1 1 1 1 1 1 1 1 1 ...
-    #  $ chr_to_range                    : int  4 0 6 1 1 0 2 1 1 2 ...
-    #  $ chr_to_flanking_seq             : logi  NA NA NA NA NA NA ...
-    #  $ assembly_version                : chr  "GRCh37" "GRCh37" "GRCh37" "GRCh37" ...
-    #  $ sequencing_strategy             : chr  "WGS" "WGS" "WGS" "WGS" ...
-    #  $ microhomology_sequence          : chr  "AGAA" "" "TTCTGC" "A" ...
 
     # Encoding fields for the pipeline calculation
     d$sampleid <- gsub("(a|b).*$", "", d$submitted_sample_id) # There are 569 unique sample_id, after removing a|b, it's still 569 unique sample id
@@ -88,6 +63,7 @@ prepare_data <- function(){
 
     #
     d$Type <- "SOMATIC"
+
     # Coding variantCaller, if Pindel in the string, then it's Pindel, otherwise it's PCAWG_consensus
     table(d$variation_calling_algorithm)
     d$variantCaller <- "BRASS"
@@ -143,8 +119,9 @@ process_blast_output_serena_data(blast_dir)
 
 
 ## -----------------------------------------------------------------------------------------------
-# identify deletions with homeology candidates by taking most similar and longest alignment
-# At the end, we decide to use >=80% similarity, and >=30bp alignment length
+# Until this step, we have got the alignments, next we will identify deletions with homeology candidates 
+#   by taking most similar and longest alignment, where the alignment should have >=80% similarity, 
+#   and >=30bp alignment length
 
 make_ssa_candidate_table <- function(deletions, outDir, similarities = c(80), alignment_lens = c(25,30)){
 
