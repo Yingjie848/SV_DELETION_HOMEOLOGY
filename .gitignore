@@ -3,6 +3,7 @@ output
 !example/output/
 input/
 input
+!example/input/
 data/
 data
 workflow/
