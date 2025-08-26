@@ -68,10 +68,4 @@ blastn -version
 makeblastdb -version
 ```
 ### 3. Reference Genome Setup
-The script requires the GRCh37/b37 reference genome. You need to either:
-1. Place your reference genome at this path:
-   ```
-   ~/my_databases/Pier_reference_b37/b37.cleanName.fasta
-   ```
-2. Or modify the path in `lib/lib_blast.R` to point to your reference genome file
-GRCh37/b37 is the appropriate reference genome for this analysis.
+The script requires the GRCh37/b37 reference genome. You need modify the path in `lib/lib_blast.R` to point to your reference genome file.
