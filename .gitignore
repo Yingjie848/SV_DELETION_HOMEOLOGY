@@ -1,5 +1,6 @@
 output/
 output
+!example/output/
 input/
 input
 data/
