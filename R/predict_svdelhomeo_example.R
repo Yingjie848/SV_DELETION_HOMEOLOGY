@@ -14,17 +14,20 @@ source("lib/lib_plots.R")
 source("lib/lib_repeats.R")
 source("lib/lib_example_data.R")
 
+
+## -----------------------------------------------------------------------------------------------
+# Step 1: set up I/O files and directories
+
+# set deletions input file
+deletions <- fread("example/input/structural_deletions_example.tsv") %>%
+            dplyr::mutate(del_length = end_position - start_position + 1) %>%
+            dplyr::filter(del_length>1000)
+
 # set output directory
 outdir="example/output"; dir.create(outdir)
 
 # set blast directory
 blast_dir=paste0(outdir,"/blast_output"); dir.create(blast_dir)
-
-## -----------------------------------------------------------------------------------------------
-# Step 1: load deletions
-deletions <- fread("example/input/structural_deletions_example.tsv") %>%
-            dplyr::mutate(del_length = end_position - start_position + 1) %>%
-            dplyr::filter(del_length>1000)
 
 
 ## -----------------------------------------------------------------------------------------------
@@ -79,7 +82,8 @@ sample     <- out[[2]]
 # save deletions with homeology
 candidates %>% fwrite(paste0(outdir,"/ssa_events_candidates.tsv"),sep="\t")
 
-# save summary of samples with homeology (average values of deletion length, alignment length, identify/similarity, and homeology rate result, etc)
+# save summary of samples with homeology 
+# (average values of deletion length, alignment length, identify/similarity, and homeology rate result, etc)
 sample     %>% fwrite(paste0(outdir,"/ssa_events_samples.tsv"),sep="\t")
 
 
