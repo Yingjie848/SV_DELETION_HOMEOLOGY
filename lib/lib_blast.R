@@ -135,7 +135,7 @@ run_pairwise_blast_lr100 <- function(deletion_tbl,bltbl_file,tmp_dir="tmp"){
 
     err_file=paste0(tmp_dir,".run.err")
     out_file=paste0(tmp_dir,".run.out")
-    cmd <- paste0("~/lib/sub.sh 12:00 1 1 ",err_file," ",out_file,' "sh ',tmp_dir,'.run.sh"'); system(cmd)
+    cmd <- paste0("lib/sub.sh 12:00 1 1 ",err_file," ",out_file,' "sh ',tmp_dir,'.run.sh"'); system(cmd)
 
     # wait until all jobs finished
     cmd <- paste0("find ",tmp_dir," | awk '$1~/blast.tsv/' | awk '{print \"cat \"$1}' | bash > ",bltbl_file); system(cmd)
@@ -169,8 +169,11 @@ process_blast_output <- function(blast_dir){
             end_position = sapply(1:length(split_query_id), function(i) as.numeric(split_query_id[[i]][[1]][4]))
         )
 
-    # write out filtered blast results
-    blast_output %>% fwrite(paste0(blast_dir, "/blast_output.tsv"), sep = "\t")
+    # write out formatted blast results
+    blast_output %>% fwrite(paste0(blast_dir,"/blast_output.formatted.tsv"), sep = "\t")
+
+    blast_output_same_strand <- blast_output %>% dplyr::filter(q_strand=='+',s_strand=='+')
+    blast_output_same_strand %>% fwrite(paste0(blast_dir,"/blast_output.same_direction.tsv"), sep = "\t")
 
 }
 
