@@ -42,7 +42,7 @@ run_pairwise_blast_lr100(
     tmp_dir=paste0(blast_dir,"/tmp"))
 
 # clean up the folder
-system(paste0("rm -rf ",blast_dir,"/tmp"))
+system(paste0("rm -rf ",blast_dir,"/tmp*"))
 
 # Process blast output, extract alignments with the same direction
 # Output: blast_output.same_direction.tsv
